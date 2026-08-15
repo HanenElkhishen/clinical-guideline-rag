@@ -1,0 +1,11 @@
+pymupdf
+tiktoken
+qdrant-client
+rank-bm25
+pydantic
+streamlit
+pandas
+numpy
+ragas
+datasets
+ollama
