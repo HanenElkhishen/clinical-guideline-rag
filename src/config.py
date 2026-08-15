@@ -6,7 +6,7 @@ load_dotenv()
 
 LLM_MODEL = os.getenv(
     "LLM_MODEL",
-    "qwen3:4b-instruct"
+    "qwen2:0.5b"
 )
 
 EMBEDDING_MODEL = os.getenv(

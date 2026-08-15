@@ -2,7 +2,7 @@ from src.retrieval import retrieve
 
 
 question = (
-    "What is the recommended blood pressure target?"
+    "What is the epilepsy diagnosis process?"
 )
 
 

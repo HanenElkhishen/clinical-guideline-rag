@@ -1,7 +1,7 @@
 from src.rag import answer_question
 
 
-question = "What is the meaning of epilepsy?"
+question = "What is Historical background of epilepsy?"
 
 
 print("\n")

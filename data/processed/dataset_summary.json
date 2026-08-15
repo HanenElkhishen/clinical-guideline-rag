@@ -1,0 +1,21 @@
+{
+  "total_chunks": 255,
+  "total_documents": 3,
+  "documents": {
+    "epilepsy cdc.pdf": {
+      "organization": "Centers for Disease Control and Prevention",
+      "total_chunks": 33,
+      "total_pages": 20
+    },
+    "epilepsies nice.pdf": {
+      "organization": "National Institute for Health and Care Excellence",
+      "total_chunks": 161,
+      "total_pages": 161
+    },
+    "epilepsy.pdf": {
+      "organization": "World Health Organization",
+      "total_chunks": 61,
+      "total_pages": 33
+    }
+  }
+}
