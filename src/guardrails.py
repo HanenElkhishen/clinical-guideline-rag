@@ -110,6 +110,36 @@ def verify_retrieval_confidence(
     return True, "LOW"
 
 
+# Phrases indicating the LLM itself is reporting that it found no answer.
+# If the "recommendation" text matches one of these, it must NEVER be scored
+# HIGH/MEDIUM confidence just because it happens to share vocabulary (e.g. the
+# word "epilepsy") with the retrieved (and possibly irrelevant) chunks.
+REFUSAL_PATTERNS = [
+    r"does\s+not\s+contain\s+(a\s+|an\s+)?(sufficient\s+information|definition|explanation|enough\s+information)",
+    r"no\s+sufficiently\s+relevant\s+evidence",
+    r"insufficient\s+information",
+    r"does\s+not\s+contain\s+information",
+    r"cannot\s+(be\s+)?(determine|answer|address)",
+    r"unable\s+to\s+(find|locate|determine)",
+]
+
+COMPILED_REFUSAL = [re.compile(p, re.IGNORECASE) for p in REFUSAL_PATTERNS]
+
+
+def is_refusal_response(recommendation: str) -> bool:
+    """
+    Detect whether the generated recommendation is itself a 'no answer found'
+    statement. Word-overlap-based faithfulness checks can be fooled by these
+    (the refusal text often shares vocabulary, e.g. the disease name, with the
+    retrieved context), so this must be checked independently and take
+    precedence over the overlap-based faithfulness score.
+    """
+    if not recommendation:
+        return False
+    text = recommendation.strip()
+    return any(pattern.search(text) for pattern in COMPILED_REFUSAL)
+
+
 def extract_content_words(text: str) -> set:
     """
     Extract alphanumeric content words excluding common stopwords.

@@ -3,7 +3,7 @@ import re
 from typing import List, Dict, Any, Optional
 import ollama
 
-from src.config import LLM_MODEL
+from src.config import LLM_MODEL, FINAL_K
 from src.models import RetrievedChunk
 
 
@@ -19,7 +19,7 @@ RULES:
 """
 
 
-def _format_evidence_context(chunks: List[RetrievedChunk], max_chunks: int = 3, max_chars_per_chunk: int = 600) -> str:
+def _format_evidence_context(chunks: List[RetrievedChunk], max_chunks: int = FINAL_K, max_chars_per_chunk: int = 600) -> str:
     blocks = []
     for idx, chunk in enumerate(chunks[:max_chunks], start=1):
         clean_text = chunk.text[:max_chars_per_chunk].strip()
@@ -76,7 +76,7 @@ def generate_answer(
             "confidence": "LOW",
         }
 
-    top_chunks = chunks[:3]
+    top_chunks = chunks[:FINAL_K]
     evidence_str = _format_evidence_context(top_chunks)
 
     user_prompt = f"""Question: {question}
@@ -109,7 +109,7 @@ Respond with valid JSON:
             ],
             options={
                 "temperature": 0.05,
-                "num_predict": 250,
+                "num_predict": 450,
             },
         )
         raw_content = response["message"]["content"]

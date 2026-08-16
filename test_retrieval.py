@@ -1,63 +1,8 @@
 from src.retrieval import retrieve
 
-
-question = (
-    "What is the epilepsy diagnosis process?"
-)
-
-
-results = retrieve(
-    question,
-    top_k=5,
-)
-
-
-print("\n")
-print("=" * 70)
-
-print("QUESTION:")
-print(question)
-
-print("\nTOP RETRIEVED CHUNKS:")
-
-for i, result in enumerate(
-    results,
-    start=1
-):
-
-    print("\n" + "-" * 70)
-
-    print(f"Rank: {i}")
-
-    print(
-        "Document:",
-        result.document_name
-    )
-
-    print(
-        "Organization:",
-        result.source_organization
-    )
-
-    print(
-        "Section:",
-        result.section_title
-    )
-
-    print(
-        "Page:",
-        result.page_number
-    )
-
-    print(
-        "Score:",
-        result.final_score
-    )
-
-    print(
-        "Chunk ID:",
-        result.chunk_id
-    )
-
-    print("\nTEXT:")
-    print(result.text[:1000])
+results = retrieve("What is epilepsy?", top_k=5)
+for i, r in enumerate(results, 1):
+    print(i, "| score:", round(r.final_score, 4), "| dense:", round(r.dense_score,3), "| bm25:", round(r.bm25_score,2))
+    print("   section:", r.section_title, "| page:", r.page_number)
+    print("   text:", r.text[:150])
+    print()

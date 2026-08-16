@@ -15,10 +15,26 @@ from src.config import (
 from src.models import DocumentChunk
 from src.embeddings import embed_text
 
-# Initialize Qdrant Client (with fallback to local memory if url unreachable)
+# Initialize Qdrant Client. IMPORTANT: this used to silently fall back to an
+# ephemeral in-memory client on ANY connection error, with no warning printed.
+# That is dangerous: an in-memory client is a fresh, empty store per process,
+# so ingest.py and app.py/test_retrieval.py (separate processes) would each
+# get their OWN disconnected in-memory store -- ingestion would appear to
+# "succeed" but nothing would ever be found at query time, with no error to
+# explain why. We now fail loudly instead so this is impossible to miss.
 try:
     client = QdrantClient(url=QDRANT_URL)
-except Exception:
+    client.get_collections()  # force an actual round-trip now, not lazily later
+except Exception as e:
+    print(
+        f"[WARNING] Could not connect to Qdrant at '{QDRANT_URL}': {e}\n"
+        f"[WARNING] Falling back to an IN-MEMORY Qdrant instance. Data stored "
+        f"here will NOT persist and will NOT be visible to any other process "
+        f"(e.g. if ingest.py runs separately from the app). This almost "
+        f"certainly means retrieval will silently return nothing useful.\n"
+        f"[WARNING] Fix: make sure Qdrant is running (`docker compose up -d`) "
+        f"and QDRANT_URL in your .env is correct, then restart."
+    )
     client = QdrantClient(":memory:")
 
 

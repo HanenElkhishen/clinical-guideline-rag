@@ -8,4 +8,5 @@ pandas
 numpy
 ragas
 datasets
-ollama
+ollama>=0.3.0
+python-dotenv

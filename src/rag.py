@@ -5,6 +5,7 @@ from src.guardrails import (
     classify_query,
     verify_retrieval_confidence,
     verify_unsupported_claims,
+    is_refusal_response,
 )
 from src.retrieval import retrieve
 from src.llm import generate_answer
@@ -80,6 +81,13 @@ def answer_question(question: str) -> Dict[str, Any]:
         final_confidence = "LOW"
     elif faithfulness < 0.85 and final_confidence == "HIGH":
         final_confidence = "MEDIUM"
+
+    # Word-overlap faithfulness can be fooled when the model's own "I found
+    # nothing" sentence happens to share vocabulary with the retrieved chunks
+    # (e.g. the disease name). A refusal must never be reported as HIGH/MEDIUM
+    # confidence just because of that overlap, so this check takes precedence.
+    if is_refusal_response(rec_text):
+        final_confidence = "LOW"
 
     status = "needs_caution" if classification.category == "needs_caution" else "answered"
 

@@ -118,16 +118,22 @@ def extract_pdf_pages(pdf_path: str) -> List[Dict[str, Any]]:
 
     source_key = path_obj.parent.name.lower()
     if source_key not in ALLOWED_SOURCES:
-        # Fallback to general lookup if direct parent is not source folder
-        for key, org in ALLOWED_SOURCES.items():
-            if key in str(path_obj).lower():
-                source_name = org
-                break
-        else:
+        # Fallback: check ancestor FOLDER NAMES only (never the filename itself).
+        # Matching on the filename (or raw path string) is unsafe here: a file
+        # named e.g. "epilepsy_cdc.pdf" would get silently attributed to CDC
+        # even if its actual content is an unrelated document, corrupting the
+        # citation trail this app relies on for clinical trustworthiness.
+        folder_parts = {p.lower() for p in path_obj.parent.parts}
+        matched_key = next((key for key in ALLOWED_SOURCES if key in folder_parts), None)
+
+        if matched_key is None:
             raise ValueError(
                 f"Unsupported source directory for: {pdf_path}. "
+                f"Place the PDF inside a folder named after its source "
+                f"(e.g. data/raw/who/, data/raw/cdc/, data/raw/nice/, data/raw/uspstf/). "
                 f"Allowed source keys: {list(ALLOWED_SOURCES.keys())}"
             )
+        source_name = ALLOWED_SOURCES[matched_key]
     else:
         source_name = ALLOWED_SOURCES[source_key]
 
