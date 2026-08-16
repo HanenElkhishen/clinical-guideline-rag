@@ -1,7 +1,7 @@
 from src.rag import answer_question
 
 
-question = "What is the epilepsy?"
+question = "What is the link between poverty and common mental disorders?"
 
 
 print("\n")

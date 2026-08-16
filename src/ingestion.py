@@ -95,15 +95,34 @@ def is_heading_candidate(line: str) -> bool:
         return False
 
     # Check numbered sections: e.g. "1 Diagnosis and assessment", "1.1 Referral", "6.2 Lennox-Gastaut", "2.2 Historical background"
-    if re.match(r"^(\d+(\.\d+)*\s+[A-Z].*)", line_clean):
+    # Exclude date-like false positives (e.g. "1 January - 31 December 2008...",
+    # a reference-list entry) which otherwise match the same "digit + Capitalized
+    # word" shape as a real numbered heading.
+    MONTHS = (
+        "January", "February", "March", "April", "May", "June", "July",
+        "August", "September", "October", "November", "December",
+    )
+    if re.match(r"^(\d+(\.\d+)*\s+[A-Z].*)", line_clean) and not line_clean.split(maxsplit=1)[-1].startswith(MONTHS):
         return True
 
-    # Check uppercase or title headers
-    if re.match(r"^(Recommendations|Overview|Contents|Methods|Results|Discussion|References|Table \d+|Figure \d+|Box \d+|Background)", line_clean, re.IGNORECASE):
+    # Check title-cased headers. IMPORTANT: no re.IGNORECASE here -- real section
+    # headings are capitalized ("Methods"), whereas re.IGNORECASE previously let
+    # this match ordinary in-text sentence fragments like "methods (12)." (a
+    # truncated citation reference), which then got carried forward as the
+    # wrongly-labeled section for every following page until another false
+    # match appeared.
+    if re.match(r"^(Recommendations|Overview|Contents|Methods|Results|Discussion|References|Table \d+|Figure \d+|Box \d+|Background)", line_clean):
         return True
 
+    # All-caps heading check. Guard against short reference/ISBN/code-like lines
+    # (e.g. "(ISBN: 978-92-9021-696-4)") which are technically ".isupper()" (their
+    # only cased character, e.g. "ISBN", happens to be uppercase) but are not
+    # real headings -- they are digit/punctuation-heavy rather than word-like.
     if line_clean.isupper() and 4 <= len(line_clean) <= 60:
-        return True
+        letters = sum(1 for ch in line_clean if ch.isalpha())
+        digits = sum(1 for ch in line_clean if ch.isdigit())
+        if letters >= 4 and digits <= letters:
+            return True
 
     return False
 
