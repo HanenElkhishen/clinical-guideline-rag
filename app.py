@@ -107,6 +107,23 @@ if st.button(
 
 
         # --------------------------------------------------
+        # Insufficient Evidence
+        # --------------------------------------------------
+
+        if result["status"] == "insufficient_evidence":
+
+            st.warning(
+                result["recommendation"]
+            )
+
+            st.info(
+                result["disclaimer"]
+            )
+
+            st.stop()
+
+
+        # --------------------------------------------------
         # Recommendation
         # --------------------------------------------------
 

@@ -1,117 +1,103 @@
-from src.config import (
-    FINAL_K,
-    MIN_RETRIEVAL_SCORE,
-)
+from typing import Dict, Any
 
+from src.config import FINAL_K
 from src.guardrails import (
     classify_query,
+    verify_retrieval_confidence,
+    verify_unsupported_claims,
+    is_refusal_response,
+)
+from src.retrieval import retrieve
+from src.llm import generate_answer
+from src.models import RAGResponse
+
+
+DEFAULT_DISCLAIMER = (
+    "This system provides evidence retrieval from official published clinical guidelines "
+    "(WHO, NICE, CDC) for informational and research purposes only. It is NOT a substitute "
+    "for professional clinical judgment, diagnosis, or personalized patient treatment."
 )
 
-from src.retrieval import (
-    retrieve,
-)
 
-from src.llm import (
-    generate_answer,
-)
-
-
-def calculate_confidence(
-    chunks
-):
-
-    if not chunks:
-        return "LOW"
-
-    score = chunks[0].final_score
-
-    if score >= 0.08:
-        return "HIGH"
-
-    if score >= 0.04:
-        return "MEDIUM"
-
-    return "LOW"
-
-
-def answer_question(
-    question: str
-):
-
-    classification = classify_query(
-        question
-    )
+def answer_question(question: str) -> Dict[str, Any]:
+    """
+    Main Clinical Guideline RAG Pipeline:
+    1. Guardrail Step 1: Input Query Classification (Allowed / Needs Caution / Refused)
+    2. Retrieval: Hybrid Dense Semantic Search + Full-Corpus BM25 + Reciprocal Rank Fusion
+    3. Guardrail Step 2: Retrieval Relevance & Confidence Verification
+    4. Generation: Strict Context-Grounded LLM Generation
+    5. Guardrail Step 3: Sentence-level Faithfulness & Unsupported Claim Verification
+    6. Formatted Output Construction
+    """
+    # 1. Input Guardrail
+    classification = classify_query(question)
 
     if classification.category == "rejected":
-
         return {
             "status": "rejected",
-
             "recommendation": (
-                "I cannot provide individualized "
-                "medical diagnosis or treatment decisions."
+                f"Inquiry Refused: {classification.reason} "
+                "Please consult a licensed medical professional for individual diagnosis or treatment."
             ),
-
             "supporting_evidence": [],
-
             "citations": [],
-
             "confidence": "LOW",
-
-            "disclaimer": (
-                "This system is for guideline "
-                "retrieval and educational use."
-            ),
+            "disclaimer": DEFAULT_DISCLAIMER,
+            "faithfulness_score": 1.0,
+            "unsupported_claims": [],
         }
 
-    chunks = retrieve(
-        question,
-        top_k=FINAL_K,
-    )
+    # 2. Hybrid Retrieval
+    chunks = retrieve(question, top_k=FINAL_K)
 
-    if not chunks:
+    # 3. Retrieval Confidence & Relevance Verification
+    is_sufficient, confidence_rating = verify_retrieval_confidence(chunks)
 
+    if not is_sufficient or not chunks:
         return {
-            "status": "needs_caution",
-
+            "status": "insufficient_evidence",
             "recommendation": (
-                "No relevant official guideline "
-                "evidence was retrieved."
+                "No sufficiently relevant evidence found in the official guideline corpus "
+                "(CDC, NICE, WHO) to answer this question accurately."
             ),
-
             "supporting_evidence": [],
-
             "citations": [],
-
-            "confidence": "LOW",
-
-            "disclaimer": (
-                "No sufficient evidence was found."
-            ),
+            "confidence": "INSUFFICIENT_EVIDENCE",
+            "disclaimer": DEFAULT_DISCLAIMER,
+            "faithfulness_score": 1.0,
+            "unsupported_claims": [],
         }
 
-    confidence = calculate_confidence(
-        chunks
-    )
+    # 4. Strictly Grounded LLM Generation
+    result = generate_answer(question, chunks)
 
-    result = generate_answer(
-        question,
-        chunks,
-    )
+    # 5. Unsupported Claim & Faithfulness Check
+    rec_text = result.get("recommendation", "")
+    faithfulness, verifications, unsupported = verify_unsupported_claims(rec_text, chunks)
 
-    result["status"] = (
-        "needs_caution"
-        if classification.category == "needs_caution"
-        else "answered"
-    )
+    # Adjust confidence if faithfulness is sub-optimal
+    final_confidence = confidence_rating
+    if faithfulness < 0.60:
+        final_confidence = "LOW"
+    elif faithfulness < 0.85 and final_confidence == "HIGH":
+        final_confidence = "MEDIUM"
 
-    result["confidence"] = confidence
+    # Word-overlap faithfulness can be fooled when the model's own "I found
+    # nothing" sentence happens to share vocabulary with the retrieved chunks
+    # (e.g. the disease name). A refusal must never be reported as HIGH/MEDIUM
+    # confidence just because of that overlap, so this check takes precedence.
+    if is_refusal_response(rec_text):
+        final_confidence = "LOW"
 
-    result["disclaimer"] = (
-        "This assistant retrieves information "
-        "from official clinical guidelines. "
-        "It is not a substitute for professional "
-        "clinical judgment."
-    )
+    status = "needs_caution" if classification.category == "needs_caution" else "answered"
 
-    return result
+    return {
+        "status": status,
+        "recommendation": rec_text,
+        "supporting_evidence": result.get("supporting_evidence", []),
+        "citations": result.get("citations", []),
+        "confidence": final_confidence,
+        "disclaimer": DEFAULT_DISCLAIMER,
+        "faithfulness_score": faithfulness,
+        "unsupported_claims": unsupported,
+    }
